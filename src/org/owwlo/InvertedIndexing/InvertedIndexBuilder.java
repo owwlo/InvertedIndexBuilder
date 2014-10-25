@@ -1,17 +1,23 @@
 
 package org.owwlo.InvertedIndexing;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +25,8 @@ import java.util.Set;
 
 public class InvertedIndexBuilder {
     private static final String IDX_FILE_PREFIX = "idx";
+    private static final String SE_IDX_FILE_PREFIX = "seIdx";
+    private static final String IDX_OBJ_FILE_PREFIX = "idxObj";
     private static final String POST_LIST_PREFIX = "pstl";
 
     /**
@@ -29,7 +37,7 @@ public class InvertedIndexBuilder {
     /**
      * Structure holds relation from tokens offset.
      */
-    private Map<String, Integer[]> _idxMap = new HashMap<String, Integer[]>();
+    private Map<String, Integer[]> _idxMap = new LinkedHashMap<String, Integer[]>();
 
     /**
      * Base dir for the whole index.
@@ -40,6 +48,9 @@ public class InvertedIndexBuilder {
      * Collections of different instances of IvtMap.
      */
     private List<IvtMapBase> ivtCollection = new LinkedList<InvertedIndexBuilder.IvtMapBase>();
+
+    private ObjectOutputStream _secondIdxOutputObjectStream;
+    private File _secondIdxFile;
 
     /**
      * Create a new builder instance.
@@ -56,6 +67,14 @@ public class InvertedIndexBuilder {
 
     private InvertedIndexBuilder(File dir) {
         this._baseDir = dir;
+        this._secondIdxFile = new File(dir, IDX_OBJ_FILE_PREFIX);
+        try {
+            FileOutputStream fout = new FileOutputStream(_secondIdxFile);
+            BufferedOutputStream bout = new BufferedOutputStream(fout);
+            this._secondIdxOutputObjectStream = new ObjectOutputStream(bout);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public IvtMapInteger createDistributedIvtiIntegerMap() {
@@ -75,8 +94,46 @@ public class InvertedIndexBuilder {
         for (IvtMapBase ivt : ivtCollection) {
             ivt.commit();
         }
-        File idxFile = new File(_baseDir, IDX_FILE_PREFIX);
-        Utils.writeObjectToFile(idxFile, _idxMap);
+        buildSecondIndex();
+    }
+
+    private void buildSecondIndex() {
+        try {
+            _secondIdxOutputObjectStream.close();
+
+            FileInputStream streamIn = new FileInputStream(_secondIdxFile);
+            BufferedInputStream bin = new BufferedInputStream(streamIn);
+            ObjectInputStream oin = new ObjectInputStream(bin);
+
+            RandomAccessFile sIdxOut = new RandomAccessFile(new File(_baseDir, SE_IDX_FILE_PREFIX),
+                    "rw");
+
+            Map<String, Integer> tokenMap = new HashMap<String, Integer>();
+            while (streamIn.available() > 0) {
+                Object obj = oin.readObject();
+                SecondIndexObject sio = (SecondIndexObject) obj;
+                String token = sio.getToken();
+                if (!tokenMap.containsKey(token)) {
+                    tokenMap.put(token, tokenMap.size());
+                }
+                int tokenIdx = tokenMap.get(token);
+                sIdxOut.seek(tokenIdx * Integer.SIZE / 8 * _mapCount + Integer.SIZE / 8
+                        * sio.getMapId());
+                sIdxOut.writeInt(sio.getOffset());
+            }
+
+            oin.close();
+
+            _secondIdxFile.delete();
+
+            sIdxOut.close();
+
+            Utils.writeObjectToFile(new File(_baseDir, IDX_FILE_PREFIX), tokenMap);
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -259,6 +316,7 @@ public class InvertedIndexBuilder {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            builder.ivtCollection.remove(this);
         }
 
         @Override
@@ -272,22 +330,38 @@ public class InvertedIndexBuilder {
         }
     }
 
-    private static <T> T[] extendArraySize(T[] array, int newSize) {
-        T[] temp = array.clone();
-        array = (T[]) new Object[newSize];
-        System.arraycopy(temp, 0, array, 0, temp.length);
-        return array;
+    synchronized private void writeIndex(String token, int offset, int mapId) {
+        SecondIndexObject sio = new SecondIndexObject(token, mapId, offset);
+        try {
+            _secondIdxOutputObjectStream.writeObject(sio);
+            _secondIdxOutputObjectStream.reset();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    synchronized private void writeIndex(String token, int offset, int mapId) {
-        if (!_idxMap.containsKey(token)) {
-            _idxMap.put(token, new Integer[_mapCount]);
+    private static class SecondIndexObject implements Serializable {
+        private String token;
+        private int mapId;
+        private int offset;
+
+        public SecondIndexObject(String token, int mapId, int offset) {
+            super();
+            this.token = token;
+            this.mapId = mapId;
+            this.offset = offset;
         }
-        Integer[] offsetList = _idxMap.get(token);
-        if (offsetList.length != _mapCount) {
-            offsetList = extendArraySize(offsetList, _mapCount);
-            _idxMap.put(token, offsetList);
+
+        public String getToken() {
+            return token;
         }
-        _idxMap.get(token)[mapId] = offset;
+
+        public int getMapId() {
+            return mapId;
+        }
+
+        public int getOffset() {
+            return offset;
+        }
     }
 }

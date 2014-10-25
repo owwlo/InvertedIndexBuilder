@@ -4,6 +4,7 @@ package org.owwlo.InvertedIndexing.examples;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -16,24 +17,35 @@ public class IvtiBuild {
     public static Random rand = new Random();
 
     public static String getRandomString(int length) {
-        String alphabet = "abcdefghijklmnopqrstuvwxyj";
+        String alphabet = "abcdefghijklmnopqr";
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < length; i++) {
             sb.append(alphabet.charAt(rand.nextInt(alphabet.length())));
         }
         return sb.toString();
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void cleanUpDirectory(File dir) {
+        dir.mkdirs();
+        for (File file : dir.listFiles()) {
+            file.delete();
+        }
+    }
+
+    public static void main(String[] aregs) throws IOException {
         long start_t = System.currentTimeMillis();
 
         final int fakeFileCount = 10228;
-        final int fakePassageLength = 500;
+        final int fakePassageLength = 2000;
         final int termMaxLength = 5;
         final int filesPerBatch = 1000;
 
-        InvertedIndexBuilder builder = InvertedIndexBuilder.getBuilder(new File(System
-                .getProperty("java.io.tmpdir")));
+        // InvertedIndexBuilder builder = InvertedIndexBuilder.getBuilder(new
+        // File(System
+        // .getProperty("java.io.tmpdir")));
+        File dir = new File("test");
+        cleanUpDirectory(dir);
+        InvertedIndexBuilder builder = InvertedIndexBuilder.getBuilder(dir);
 
         for (int batchNum = 0; batchNum < fakeFileCount / filesPerBatch + 1; batchNum++) {
             int fileIdStart = batchNum * filesPerBatch;
@@ -46,7 +58,7 @@ public class IvtiBuild {
 
             IvtMapInteger ivtMapBatch = builder.createDistributedIvtiIntegerMap();
 
-            Map<String, List<Integer>> ivtMap = new HashMap<String, List<Integer>>();
+            Map<String, List<Integer>> ivtMap = new LinkedHashMap<String, List<Integer>>();
 
             for (int docId = fileIdStart; docId < fileIdEnd; docId++) {
                 Map<String, List<Integer>> ivtMapItem = new HashMap<String, List<Integer>>();
@@ -81,6 +93,8 @@ public class IvtiBuild {
             System.out.println("Batch commit done. Elapsed: "
                     + (System.currentTimeMillis() - start_t) / 1000.0 + "s");
         }
+
+        builder.close();
 
         System.out.println("Construct done. Duration: " + (System.currentTimeMillis() - start_t)
                 / 1000.0 + "s");
