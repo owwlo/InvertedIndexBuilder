@@ -1,4 +1,4 @@
-InvertedIndexBuilder
+Inverted Index Builder
 ====================
 
 A helper library could be used to build Inverted Index files under memory limitation.
@@ -35,7 +35,7 @@ Index Algorithm|Occurrence (No Compression)
 
 Heap Space|Batch Size|Time|Index Size
 -------- | ---|---|---
--Xmx512m|1,750|353.8|178.044s
+-Xmx512m|1,750|178.044s|353.8MB
 
 Usage
 ----
