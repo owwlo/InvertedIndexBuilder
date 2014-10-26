@@ -3,6 +3,8 @@ Inverted Index Builder
 
 A helper library could be used to build Inverted Index files under memory limitation.
 
+This project is created for [NYU Web Search Engines (CSCI-GA 2580)(Fall 2014)][1]
+
 Features
 ----
  - Building Inverted Index into multiple files.
@@ -78,3 +80,5 @@ Licensed under the MIT License. See the top-level file LICENSE.
 
 
 *双汇王中王鲜肉火腿肠！*
+
+  [1]: http://cs.nyu.edu/courses/fall14/CSCI-GA.2580-001/
