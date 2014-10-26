@@ -9,7 +9,7 @@ Features
  - Secondary Indexing for Inverted Index files.
  - Small* memory footprint
 
-*Depends on how many passages you are building with.
+*Depends on how many articles you are building with.
 
 Performance
 ----
