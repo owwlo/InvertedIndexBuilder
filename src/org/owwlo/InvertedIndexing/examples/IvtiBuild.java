@@ -42,7 +42,7 @@ public class IvtiBuild {
     public static void main(String[] aregs) throws IOException {
         long start_t = System.currentTimeMillis();
 
-        final int fakeFileCount = 2228;
+        final int fakeFileCount = 10228;
         final int fakePassageLength = 2000;
         final int termMaxLength = 5;
         final int filesPerBatch = 1000;
@@ -142,7 +142,7 @@ public class IvtiBuild {
         // Ensure everything will be on disk.
         builder.close();
 
-        System.out.println("Construct done. Duration: " + (System.currentTimeMillis() - start_t)
+        System.out.println("Construct done. Elapsed: " + (System.currentTimeMillis() - start_t)
                 / 1000.0 + "s");
 
         System.out.println("Reopen for verifing. Elapsed: "
@@ -156,5 +156,8 @@ public class IvtiBuild {
         System.out.println("Reopen and retrive Posting List for token '" + randPickToken
                 + "':");
         printList(lst);
+
+        System.out.println("All done. Elapsed: " + (System.currentTimeMillis() - start_t)
+                / 1000.0 + "s");
     }
 }

@@ -14,7 +14,28 @@ Features
 Performance
 ----
 
-lalala
+ * Environment
+
+Item|Value
+-------- | ---
+CPU|Core i7 3612QM
+Operating System|Ubuntu 14.04.01 LTS 64Bit
+JDK/JRE|OpenJDK Runtime Environment (IcedTea6 1.13.5)
+JRE Arguments|-Xmx512m
+
+ * Test Configuration
+
+Item|Value
+-------- | ---
+Corpus|10,228 pages from Wikipedia
+Distinct Token Count|1,600,000+
+Index Algorithm|Occurrence (No Compression)
+
+ * Result
+
+Heap Space|Batch Size|Time|Index Size
+-------- | ---|---|---
+-Xmx512m|1,750|353.8|178.044s
 
 Usage
 ----
