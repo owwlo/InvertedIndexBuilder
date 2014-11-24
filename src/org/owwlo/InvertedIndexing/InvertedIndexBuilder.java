@@ -133,8 +133,31 @@ public class InvertedIndexBuilder {
         return new IvtMapInteger(_baseDir, -1, false, _tokenMap, this);
     }
 
+    public IvtMapByte getUnifiedDistributedIvtiByteMap() {
+        return new IvtMapByte(_baseDir, -1, false, _tokenMap, this);
+    }
+
     public IvtMapInteger createDistributedIvtiIntegerMap() {
         IvtMapInteger map = new IvtMapInteger(_baseDir, _mapCount, true, _tokenMap, this);
+        if (map != null) {
+            _ivtCollection.add(map);
+            try {
+                File secondIdxFile = new File(_baseDir, IDX_OBJ_FILE_PREFIX + _mapCount);
+                FileOutputStream fout = new FileOutputStream(secondIdxFile);
+                BufferedOutputStream bout = new BufferedOutputStream(fout);
+                _secondIdxOutputObjectStreamMap.put(_mapCount, new Output(bout));
+                _mapCount++;
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return map;
+    }
+
+    public IvtMapByte createDistributedIvtiByteMap() {
+        IvtMapByte map = new IvtMapByte(_baseDir, _mapCount, true, _tokenMap, this);
         if (map != null) {
             _ivtCollection.add(map);
             try {
@@ -310,7 +333,7 @@ public class InvertedIndexBuilder {
 
         @Override
         public List<Integer> get(Object key) {
-            return builder.getPostingList(key.toString(), mapId);
+            return builder.getPostingListInteger(key.toString(), mapId);
         }
 
         @Override
@@ -386,6 +409,135 @@ public class InvertedIndexBuilder {
         }
     }
 
+    public static class IvtMapByte extends IvtMapBase implements Map<String, List<Byte>> {
+        private DataOutputStream postListOut;
+        private File pstlFile;
+        private boolean isNew;
+        private int mapId;
+        private Map<String, Integer> seIdxMap;
+        private InvertedIndexBuilder builder;
+
+        private IvtMapByte(File dir, int mapId, boolean isNew, Map<String, Integer> idxMap,
+                InvertedIndexBuilder builder) {
+            this.isNew = isNew;
+            this.mapId = mapId;
+            this.seIdxMap = idxMap;
+            this.builder = builder;
+            pstlFile = new File(dir, POST_LIST_PREFIX + mapId);
+            if (isNew) {
+                createNewMap(pstlFile);
+            }
+        }
+
+        private void createNewMap(File file) {
+            try {
+                postListOut = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(
+                        file, false)));
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void clear() {
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            if (seIdxMap.containsKey(key)) {
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return false;
+        }
+
+        @Override
+        public Set<java.util.Map.Entry<String, List<Byte>>> entrySet() {
+            return null;
+        }
+
+        @Override
+        public List<Byte> get(Object key) {
+            return builder.getPostingListByte(key.toString(), mapId);
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return seIdxMap.isEmpty();
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return seIdxMap.keySet();
+        }
+
+        @Override
+        synchronized public List<Byte> put(String key, List<Byte> value) {
+            int offset = postListOut.size();
+            int size = value.size();
+            builder.writeIndex(key, offset, mapId);
+            try {
+                postListOut.writeInt(size);
+                for (Byte bt : value) {
+                    postListOut.writeByte(bt);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return value;
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ? extends List<Byte>> m) {
+            for (String key : m.keySet()) {
+                this.put(key, m.get(key));
+            }
+        }
+
+        @Override
+        public List<Byte> remove(Object key) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size() {
+            return this.keySet().size();
+        }
+
+        @Override
+        public Collection<List<Byte>> values() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            try {
+                if (isNew) {
+                    postListOut.flush();
+                    postListOut.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            builder._ivtCollection.remove(this);
+            builder.closeForIvtMap(mapId);
+        }
+
+        @Override
+        protected void finalize() throws Throwable {
+            super.finalize();
+            this.close();
+        }
+
+        @Override
+        public void commit() {
+        }
+    }
+
     synchronized private void writeIndex(String token, int offset, int mapId) {
         SecondIndexObject sio = new SecondIndexObject(token, offset);
         kryo.writeObject(_secondIdxOutputObjectStreamMap.get(mapId), sio);
@@ -416,7 +568,7 @@ public class InvertedIndexBuilder {
         return offsets;
     }
 
-    synchronized private List<Integer> getPostingList(String token, int mapId) {
+    synchronized private List<Integer> getPostingListInteger(String token, int mapId) {
         List<Integer> offsets = getOffsets(token);
         List<Integer> result = new ArrayList<Integer>();
         try {
@@ -430,6 +582,28 @@ public class InvertedIndexBuilder {
                 int length = raf.readInt();
                 for (int j = 0; j < length; j++) {
                     result.add(raf.readInt());
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
+    synchronized private List<Byte> getPostingListByte(String token, int mapId) {
+        List<Integer> offsets = getOffsets(token);
+        List<Byte> result = new ArrayList<Byte>();
+        try {
+            for (int i = 0; i < offsets.size(); i++) {
+                int offset = offsets.get(i);
+                if (offset == -1) {
+                    continue;
+                }
+                RandomAccessFile raf = _ivtiMapInList.get(i);
+                raf.seek(offset);
+                int length = raf.readInt();
+                for (int j = 0; j < length; j++) {
+                    result.add(raf.readByte());
                 }
             }
         } catch (IOException e) {
@@ -459,5 +633,9 @@ public class InvertedIndexBuilder {
 
     public int getTotalIvtiMapCount() {
         return _mapCount;
+    }
+
+    public Map<String, Integer> getTokenOffsetMap() {
+        return _tokenMap;
     }
 }
